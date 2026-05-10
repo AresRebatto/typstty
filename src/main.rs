@@ -7,24 +7,21 @@ use crossterm::{
     style::*,
     terminal::{self, EnterAlternateScreen, LeaveAlternateScreen},
 };
-
 use std::io::{Cursor, Write};
 use std::io::{Stdout, stdout};
-mod models;
-use models::*;
 
-macro_rules! cursor_repositioning {
-    ($stdout:expr, $pos:expr) => {
-        $stdout.execute(cursor::MoveTo($pos.0, $pos.1))?;
-    };
-}
+use typstty::cursor_repositioning;
+use typstty::models::lines::*;
+
+
+
 
 fn main() -> std::io::Result<()> {
     let mut stdout: Stdout = stdout();
     let original_size = size().unwrap();
 
     init_terminal(&stdout, original_size)?;
-    let mut lines = lines::Lines::new();
+    let mut lines = Lines::new();
     loop {
         let event = event::read()?;
         
@@ -36,10 +33,8 @@ fn main() -> std::io::Result<()> {
                 }
                 if k.kind == event::KeyEventKind::Press {
                     if let KeyCode::Char(c) = k.code {
-                        write!(stdout, "{c}")?;
-                        stdout.flush()?;
-                        lines.push_char(c);
                         
+                        lines.push_char(c, &mut stdout)?;
                         
                         //Writing number of line
                         if !lines.is_current_line_active() {

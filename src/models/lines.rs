@@ -1,6 +1,8 @@
 use crate::models::line;
 
 use super::line::*;
+use std::io::{Stdout, stdout, Cursor, Write};
+use crate::cursor_repositioning;
 
 pub struct Lines {
     lines: Vec<Line>,
@@ -29,15 +31,21 @@ impl Lines {
         self.cursor_position.1
     }
 
-    pub fn push_char(&mut self, c: char) {
+    pub fn push_char(&mut self, c: char, stdout: &mut Stdout) -> std::io::Result<()>{
         //Is he adding a character at the end of the line?
         if (self.cursor_position.0 - 2) as usize == self.lines[self.actual_line as usize].line.len()
         {
             self.lines[self.actual_line as usize].push_ch(c);
-            self.cursor_position.0 += 1;
+            write!(stdout, "{c}")?;
+            stdout.flush()?;
+            
         } else {
             //TODO manage the character in the middle of line
         }
+        
+        self.cursor_position.0 += 1;
+        
+        return Ok(());
     }
 
     pub fn pop_char(&mut self) {
