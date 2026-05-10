@@ -10,7 +10,6 @@ use crossterm::{
 use std::io::{Cursor, Write};
 use std::io::{Stdout, stdout};
 
-use typstty::cursor_repositioning;
 use typstty::models::lines::*;
 
 
@@ -38,24 +37,11 @@ fn main() -> std::io::Result<()> {
                         
                     } else if k.code == KeyCode::Backspace && lines.x() > 2 {
                         //TODO implement ctrl backspace
-                        lines.pop_char();
-                        cursor_repositioning!(stdout, lines.cursor_position);
-                        write!(stdout, " ")?;
-                        stdout.flush()?;
-                        cursor_repositioning!(stdout, lines.cursor_position);
+                        lines.pop_char(&mut stdout)?;
+                        
+                    }else if k.code == KeyCode::Enter {
+                    	lines.newline(&mut stdout)?;
                     }
-                    // else if k.code == KeyCode::Enter {
-                    //     if !lines.is_current_line_active() {
-                    //         cursor_repositioning!(stdout, (0, actual_cursor_position.1));
-                    //         let n_line = actual_cursor_position.1;
-                    //         write!(stdout, "{n_line}")?;
-                    //         stdout.flush()?;
-                    //         lines.active_current_line();
-                    //     }
-                    //     actual_cursor_position.1 += 1;
-                    //     actual_cursor_position.0 = 2;
-                    //     cursor_repositioning!(stdout, actual_cursor_position);
-                    // }
                 }
             }
             _ => {}
