@@ -1,6 +1,5 @@
 pub struct Line{
-	pub line: String,
-	pub is_active: bool
+	pub line: String
 }
 
 
@@ -8,7 +7,6 @@ impl Line{
 	pub fn new()-> Self{
 		Self{
 			line: String::new(),
-			is_active: false
 		}
 	}
 	

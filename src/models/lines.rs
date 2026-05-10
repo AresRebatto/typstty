@@ -1,8 +1,8 @@
 use crate::models::line;
 
+use super::super::cursor_repositioning;
 use super::line::*;
-use std::io::{Stdout, stdout, Cursor, Write};
-use crate::cursor_repositioning;
+use std::io::{Cursor, Stdout, Write, stdout};
 
 pub struct Lines {
     lines: Vec<Line>,
@@ -31,20 +31,26 @@ impl Lines {
         self.cursor_position.1
     }
 
-    pub fn push_char(&mut self, c: char, stdout: &mut Stdout) -> std::io::Result<()>{
+    pub fn push_char(&mut self, c: char, stdout: &mut Stdout) -> std::io::Result<()> {
         //Is he adding a character at the end of the line?
         if (self.cursor_position.0 - 2) as usize == self.lines[self.actual_line as usize].line.len()
         {
+            if self.lines[self.actual_line as usize].line.len() == 0 {
+                cursor_repositioning!(stdout, (0, self.y()));
+                let n_line = self.y();
+                write!(stdout, "{n_line}")?;
+                stdout.flush()?;
+                cursor_repositioning!(stdout, self.cursor_position);
+            }
             self.lines[self.actual_line as usize].push_ch(c);
             write!(stdout, "{c}")?;
             stdout.flush()?;
-            
         } else {
             //TODO manage the character in the middle of line
         }
-        
+
         self.cursor_position.0 += 1;
-        
+
         return Ok(());
     }
 
@@ -58,12 +64,4 @@ impl Lines {
     }
 
     pub fn newline() {}
-
-    pub fn is_current_line_active(&self) -> bool {
-        self.lines[self.actual_line as usize].is_active
-    }
-
-    pub fn active_current_line(&mut self) {
-        self.lines[self.actual_line as usize].is_active = true;
-    }
 }

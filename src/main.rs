@@ -33,18 +33,9 @@ fn main() -> std::io::Result<()> {
                 }
                 if k.kind == event::KeyEventKind::Press {
                     if let KeyCode::Char(c) = k.code {
+                    
+                        lines.push_char(c, &mut stdout)?; 
                         
-                        lines.push_char(c, &mut stdout)?;
-                        
-                        //Writing number of line
-                        if !lines.is_current_line_active() {
-                            cursor_repositioning!(stdout, (0, lines.y()));
-                            let n_line = lines.y();
-                            write!(stdout, "{n_line}")?;
-                            stdout.flush()?;
-                            lines.active_current_line();
-                            cursor_repositioning!(stdout, lines.cursor_position);
-                        }
                     } else if k.code == KeyCode::Backspace && lines.x() > 2 {
                         //TODO implement ctrl backspace
                         lines.pop_char();
