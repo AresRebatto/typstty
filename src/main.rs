@@ -41,6 +41,10 @@ fn main() -> std::io::Result<()> {
                         
                     }else if k.code == KeyCode::Enter {
                     	lines.newline(&mut stdout)?;
+                    }else if k.code == KeyCode::Left{
+                    	lines.left(&mut stdout)?;
+                    }else if  k.code == KeyCode::Right{
+                    
                     }
                 }
             }
