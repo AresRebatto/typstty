@@ -22,12 +22,12 @@ macro_rules! cursor_repositioning {
 fn main() -> std::io::Result<()> {
     let mut stdout: Stdout = stdout();
     let original_size = size().unwrap();
-    let mut actual_cursor_position: (u16, u16) = (2, 0);
 
     init_terminal(&stdout, original_size)?;
+    let mut lines = lines::Lines::new();
     loop {
         let event = event::read()?;
-        let mut lines = lines::Lines::new();
+        
         match event {
             Event::Key(k) => {
                 //exit
@@ -38,37 +38,38 @@ fn main() -> std::io::Result<()> {
                     if let KeyCode::Char(c) = k.code {
                         write!(stdout, "{c}")?;
                         stdout.flush()?;
-                        lines.putchar(c);
-                        actual_cursor_position.0 += 1;
-
+                        lines.push_char(c);
+                        
+                        
                         //Writing number of line
                         if !lines.is_current_line_active() {
-                            cursor_repositioning!(stdout, (0, actual_cursor_position.1));
-                            let n_line = actual_cursor_position.1;
+                            cursor_repositioning!(stdout, (0, lines.y()));
+                            let n_line = lines.y();
                             write!(stdout, "{n_line}")?;
                             stdout.flush()?;
                             lines.active_current_line();
-                            cursor_repositioning!(stdout, actual_cursor_position);
+                            cursor_repositioning!(stdout, lines.cursor_position);
                         }
-                    } else if k.code == KeyCode::Backspace && actual_cursor_position.0 > 2 {
+                    } else if k.code == KeyCode::Backspace && lines.x() > 2 {
                         //TODO implement ctrl backspace
-                        actual_cursor_position.0 -= 1;
-                        cursor_repositioning!(stdout, actual_cursor_position);
+                        lines.pop_char();
+                        cursor_repositioning!(stdout, lines.cursor_position);
                         write!(stdout, " ")?;
                         stdout.flush()?;
-                        cursor_repositioning!(stdout, actual_cursor_position);
-                    } else if k.code == KeyCode::Enter {
-                        if !lines.is_current_line_active() {
-                            cursor_repositioning!(stdout, (0, actual_cursor_position.1));
-                            let n_line = actual_cursor_position.1;
-                            write!(stdout, "{n_line}")?;
-                            stdout.flush()?;
-                            lines.active_current_line();
-                        }
-                        actual_cursor_position.1 += 1;
-                        actual_cursor_position.0 = 2;
-                        cursor_repositioning!(stdout, actual_cursor_position);
+                        cursor_repositioning!(stdout, lines.cursor_position);
                     }
+                    // else if k.code == KeyCode::Enter {
+                    //     if !lines.is_current_line_active() {
+                    //         cursor_repositioning!(stdout, (0, actual_cursor_position.1));
+                    //         let n_line = actual_cursor_position.1;
+                    //         write!(stdout, "{n_line}")?;
+                    //         stdout.flush()?;
+                    //         lines.active_current_line();
+                    //     }
+                    //     actual_cursor_position.1 += 1;
+                    //     actual_cursor_position.0 = 2;
+                    //     cursor_repositioning!(stdout, actual_cursor_position);
+                    // }
                 }
             }
             _ => {}
