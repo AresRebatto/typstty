@@ -15,6 +15,7 @@ impl Lines {
         let mut ob = Self {
             lines: Vec::new(),
             actual_line: 0,
+            //2 cause 0 is tilde and 1 is a white space
             cursor_position: (2, 0),
         };
 
@@ -34,7 +35,7 @@ impl Lines {
     pub fn push_char(&mut self, c: char, stdout: &mut Stdout) -> std::io::Result<()> {
         //Is he adding a character at the end of the line?
         if self.x() - 2 == self.end_current_line() {
-            if self.lines[self.actual_line as usize].line.len() == 0 {
+            if self.end_current_line() == 0 {
                 cursor_repositioning!(stdout, (0, self.y()));
                 let n_line = self.y();
                 write!(stdout, "{n_line}")?;
@@ -89,14 +90,18 @@ impl Lines {
 
         self.cursor_position.1 += 1;
         self.cursor_position.0 = 2;
-        cursor_repositioning!(stdout, (2, self.y()));
+        self.actual_line += 1;
+        cursor_repositioning!(stdout, self.cursor_position);
         return Ok(());
     }
 
     pub fn left(&mut self, stdout: &mut Stdout) -> std::io::Result<()> {
         if self.x() == 2 && self.y() > 0 {
+            self.actual_line -= 1;
+
             self.cursor_position.1 -= 1;
-            self.cursor_position.0 = self.end_current_line();
+            self.cursor_position.0 = self.end_current_line() + 2;
+
             cursor_repositioning!(stdout, self.cursor_position);
         } else if self.x() > 2 {
             self.cursor_position.0 -= 1;
@@ -105,16 +110,21 @@ impl Lines {
         return Ok(());
     }
 
-    // pub fn right(&mut self, stdout: &mut Stdout) -> std::io::Result<()> {
-    //     if self.x() == self.lines[self] && self.y() > 0 {
-    //         self.cursor_position.1 -= 1;
-    //         cursor_repositioning!(stdout, self.cursor_position);
-    //     } else if self.x() > 2 {
-    //         self.cursor_position.0 -= 1;
-    //         cursor_repositioning!(stdout, self.cursor_position);
-    //     }
-    //     return Ok(());
-    // }
+    pub fn right(&mut self, stdout: &mut Stdout) -> std::io::Result<()> {
+        if self.x() < self.end_current_line() + 2 {
+            self.cursor_position.0 += 1;
+            cursor_repositioning!(stdout, self.cursor_position);
+        } else if self.x() == self.end_current_line() + 2
+            && self.end_current_line() != 0
+            && self.actual_line + 1 < self.lines.len() as u16
+        {
+            self.cursor_position.0 = 2;
+            self.cursor_position.1 += 1;
+            self.actual_line += 1;
+            cursor_repositioning!(stdout, self.cursor_position);
+        }
+        return Ok(());
+    }
 
     fn end_current_line(&self) -> u16 {
         return self.lines[self.actual_line as usize].line.len() as u16;

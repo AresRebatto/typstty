@@ -12,9 +12,6 @@ use std::io::{Stdout, stdout};
 
 use typstty::models::lines::*;
 
-
-
-
 fn main() -> std::io::Result<()> {
     let mut stdout: Stdout = stdout();
     let original_size = size().unwrap();
@@ -23,7 +20,7 @@ fn main() -> std::io::Result<()> {
     let mut lines = Lines::new();
     loop {
         let event = event::read()?;
-        
+
         match event {
             Event::Key(k) => {
                 //exit
@@ -32,19 +29,16 @@ fn main() -> std::io::Result<()> {
                 }
                 if k.kind == event::KeyEventKind::Press {
                     if let KeyCode::Char(c) = k.code {
-                    
-                        lines.push_char(c, &mut stdout)?; 
-                        
+                        lines.push_char(c, &mut stdout)?;
                     } else if k.code == KeyCode::Backspace && lines.x() > 2 {
                         //TODO implement ctrl backspace
                         lines.pop_char(&mut stdout)?;
-                        
-                    }else if k.code == KeyCode::Enter {
-                    	lines.newline(&mut stdout)?;
-                    }else if k.code == KeyCode::Left{
-                    	lines.left(&mut stdout)?;
-                    }else if  k.code == KeyCode::Right{
-                    
+                    } else if k.code == KeyCode::Enter {
+                        lines.newline(&mut stdout)?;
+                    } else if k.code == KeyCode::Left {
+                        lines.left(&mut stdout)?;
+                    } else if k.code == KeyCode::Right {
+                        lines.right(&mut stdout)?;
                     }
                 }
             }
