@@ -10,7 +10,7 @@ use crossterm::{
 use std::io::{Cursor, Write};
 use std::io::{Stdout, stdout};
 
-use typstty::models::lines::*;
+use typstty::text_buffer::lines::*;
 
 fn main() -> std::io::Result<()> {
     let mut stdout: Stdout = stdout();

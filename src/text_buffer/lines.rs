@@ -1,5 +1,5 @@
 use super::super::debug_log::log;
-use crate::models::line;
+use crate::text_buffer::line;
 
 use super::super::{cursor_repositioning, erease_current_line, rerender_current_line};
 use super::line::*;
@@ -79,7 +79,13 @@ impl Lines {
                 //TODO manage the character in the middle of line
             }
         } else {
-           
+        	/*
+            *	Verificare se ci sono righe dopo quella corrente
+            * 	Se ci sono righe correnti, portare la riga corrente affianco a quella antecedente,
+            * 	quindi traslare tutte le dopo la corrente indietro di 1. Cancellare l'ultimo numero
+            * Se la rica corrente è l'ultima, portare la righa corrente affianco a quella antecedente,
+            * quindi togliere il numero a quella corrente
+            */
             if self.is_eof() && self.lines.len() > 1 {
                 cursor_repositioning!(stdout, (0, self.y()));
                 write!(stdout, "~")?;
