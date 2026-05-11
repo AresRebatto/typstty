@@ -33,20 +33,39 @@ impl Lines {
     }
 
     pub fn push_char(&mut self, c: char, stdout: &mut Stdout) -> std::io::Result<()> {
-        //Is he adding a character at the end of the line?
-        if self.x() - 2 == self.end_current_line() {
-            if self.end_current_line() == 0 {
+        if self.is_eol() {
+            //set the line number
+            if self.is_current_line_empty() {
                 cursor_repositioning!(stdout, (0, self.y()));
+
                 let n_line = self.y();
                 write!(stdout, "{n_line}")?;
                 stdout.flush()?;
+
                 cursor_repositioning!(stdout, self.cursor_position);
             }
+
+            //Write the character
             self.lines[self.actual_line as usize].push_ch(c);
             write!(stdout, "{c}")?;
             stdout.flush()?;
         } else {
-            //TODO manage the character in the middle of line
+        
+        	//FIXME is buggy eheh
+            self.lines[self.actual_line as usize]
+                .line
+                .insert((self.cursor_position.0 - 2) as usize, c);
+
+            cursor_repositioning!(stdout, (0, self.y()));
+            let n_line = self.y();
+            write!(stdout, "{n_line} ")?;
+
+            for i in self.lines[self.cursor_position.1 as usize].line.chars() {
+                write!(stdout, "{i}")?;
+            }
+
+            //self.cursor_position.0 += 1;
+            cursor_repositioning!(stdout, self.cursor_position);
         }
 
         //FIXME not a real bug, but this here with the inserting in the
@@ -58,12 +77,14 @@ impl Lines {
 
     pub fn pop_char(&mut self, stdout: &mut Stdout) -> std::io::Result<()> {
         if self.x() != 2 {
-            if self.x() - 2 == self.end_current_line() {
+            if self.is_eol() {
                 self.lines[self.actual_line as usize].pop_ch();
                 self.cursor_position.0 -= 1;
+
                 cursor_repositioning!(stdout, self.cursor_position);
                 write!(stdout, " ")?;
                 stdout.flush()?;
+
                 cursor_repositioning!(stdout, self.cursor_position);
             } else {
                 //TODO manage the character in the middle of line
@@ -76,7 +97,8 @@ impl Lines {
     }
 
     pub fn newline(&mut self, stdout: &mut Stdout) -> std::io::Result<()> {
-        if self.end_current_line() == 0 {
+        //set the line number
+        if self.is_current_line_empty() {
             cursor_repositioning!(stdout, (0, self.y()));
             let n_line = self.y();
             write!(stdout, "{n_line}")?;
@@ -84,14 +106,15 @@ impl Lines {
             cursor_repositioning!(stdout, self.cursor_position);
         }
 
+        //create new line
         if (self.y() + 1) as usize == self.lines.len() {
             self.lines.push(Line::new())
         }
-
         self.cursor_position.1 += 1;
         self.cursor_position.0 = 2;
         self.actual_line += 1;
         cursor_repositioning!(stdout, self.cursor_position);
+
         return Ok(());
     }
 
@@ -114,7 +137,7 @@ impl Lines {
         if self.x() < self.end_current_line() + 2 {
             self.cursor_position.0 += 1;
             cursor_repositioning!(stdout, self.cursor_position);
-        } else if self.x() == self.end_current_line() + 2
+        } else if self.is_eol()
             && self.end_current_line() != 0
             && self.actual_line + 1 < self.lines.len() as u16
         {
@@ -128,5 +151,21 @@ impl Lines {
 
     fn end_current_line(&self) -> u16 {
         return self.lines[self.actual_line as usize].line.len() as u16;
+    }
+
+    //---------------------------------------------------
+    //EXTRACTING CONDITIONS
+    //---------------------------------------------------
+
+    ///Check if the cursor is at the end of the current line
+    #[inline]
+    fn is_eol(&self) -> bool {
+        self.x() - 2 == self.end_current_line()
+    }
+
+    ///Check if the cursor is at the start of the current line
+    #[inline]
+    fn is_current_line_empty(&self) -> bool {
+        self.end_current_line() == 0
     }
 }
