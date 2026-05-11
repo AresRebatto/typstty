@@ -1,6 +1,7 @@
+use super::super::debug_log::log;
 use crate::models::line;
 
-use super::super::cursor_repositioning;
+use super::super::{cursor_repositioning, rerender_current_line};
 use super::line::*;
 use std::io::{Cursor, Stdout, Write, stdout};
 
@@ -50,28 +51,16 @@ impl Lines {
             write!(stdout, "{c}")?;
             stdout.flush()?;
         } else {
-        
-        	//FIXME is buggy eheh
             self.lines[self.actual_line as usize]
                 .line
                 .insert((self.cursor_position.0 - 2) as usize, c);
-
-            cursor_repositioning!(stdout, (0, self.y()));
-            let n_line = self.y();
-            write!(stdout, "{n_line} ")?;
-
-            for i in self.lines[self.cursor_position.1 as usize].line.chars() {
-                write!(stdout, "{i}")?;
-            }
-
-            //self.cursor_position.0 += 1;
-            cursor_repositioning!(stdout, self.cursor_position);
+            rerender_current_line!(stdout, self.cursor_position, self);
         }
 
         //FIXME not a real bug, but this here with the inserting in the
         // middle of the line envolve in buggy things
         self.cursor_position.0 += 1;
-
+        cursor_repositioning!(stdout, self.cursor_position);
         return Ok(());
     }
 
