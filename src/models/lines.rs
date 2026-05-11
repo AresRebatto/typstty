@@ -1,7 +1,7 @@
 use super::super::debug_log::log;
 use crate::models::line;
 
-use super::super::{cursor_repositioning, rerender_current_line};
+use super::super::{cursor_repositioning, erease_current_line, rerender_current_line};
 use super::line::*;
 use std::io::{Cursor, Stdout, Write, stdout};
 
@@ -79,6 +79,33 @@ impl Lines {
                 //TODO manage the character in the middle of line
             }
         } else {
+           
+            if self.is_eof() && self.lines.len() > 1 {
+                cursor_repositioning!(stdout, (0, self.y()));
+                write!(stdout, "~")?;
+
+                //When you return to the previous line, place the cursor at the end of what you had written before.
+                // This saves that position.
+                let x_coordinate =
+                    (self.lines[(self.actual_line - 1) as usize].line.len() + 2) as u16;
+
+                erease_current_line!(stdout, self.cursor_position, self);
+                let popped = self.lines.pop().unwrap().line;
+                self.lines[(self.actual_line - 1) as usize]
+                    .line
+                    .push_str(popped.as_str());
+
+                self.cursor_position.1 -= 1;
+                self.cursor_position.0 = x_coordinate;
+                self.actual_line -= 1;
+                
+                rerender_current_line!(stdout, self.cursor_position, self);
+                cursor_repositioning!(stdout, self.cursor_position);
+            } else {
+
+                //TODO remove in case it isn't the last line of code
+            }
+
             //TODO erase current line
         }
 
@@ -156,5 +183,9 @@ impl Lines {
     #[inline]
     fn is_current_line_empty(&self) -> bool {
         self.end_current_line() == 0
+    }
+
+    fn is_eof(&self) -> bool {
+        self.actual_line + 1 == self.lines.len() as u16
     }
 }

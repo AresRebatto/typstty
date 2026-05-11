@@ -1,9 +1,7 @@
-
-
 #[macro_export]
 macro_rules! cursor_repositioning {
     ($stdout:expr, $pos:expr) => {{
-    	use crossterm::ExecutableCommand;
+        use crossterm::ExecutableCommand;
         $stdout.execute(crossterm::cursor::MoveTo($pos.0, $pos.1))?;
     }};
 }
@@ -11,18 +9,29 @@ macro_rules! cursor_repositioning {
 #[macro_export]
 macro_rules! rerender_current_line {
     ($stdout:expr, $pos:expr, $lines:expr) => {{
-	   	use crossterm::{
-	        cursor::{Hide, Show},
-	        execute,
-	    };
-		use crossterm::ExecutableCommand;
+        use crossterm::ExecutableCommand;
+        use crossterm::{
+            cursor::{Hide, Show},
+            execute,
+        };
 
-	     execute!($stdout, Hide)?;
-		$stdout.execute(crossterm::cursor::MoveTo(2, $pos.1))?;
-	
-	     for i in $lines.lines[$lines.cursor_position.1 as usize].line.chars() {
-	         write!($stdout, "{i}")?;
-	     }
-	     execute!($stdout, Show)?;
+        execute!($stdout, Hide)?;
+        $stdout.execute(crossterm::cursor::MoveTo(2, $pos.1))?;
+
+        for i in $lines.lines[$lines.cursor_position.1 as usize].line.chars() {
+            write!($stdout, "{i}")?;
+        }
+        execute!($stdout, Show)?;
+    }};
+}
+
+#[macro_export]
+macro_rules! erease_current_line {
+    ($stdout:expr, $pos:expr, $lines:expr) => {{
+        use crossterm::ExecutableCommand;
+        use crossterm::terminal::Clear;
+        use crossterm::terminal::ClearType;
+        $stdout.execute(crossterm::cursor::MoveTo(2, $pos.1))?;
+        $stdout.execute(Clear(ClearType::UntilNewLine))?;
     }};
 }

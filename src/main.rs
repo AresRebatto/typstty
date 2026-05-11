@@ -18,6 +18,7 @@ fn main() -> std::io::Result<()> {
 
     init_terminal(&stdout, original_size)?;
     let mut lines = Lines::new();
+    
     loop {
         let event = event::read()?;
 
@@ -30,7 +31,7 @@ fn main() -> std::io::Result<()> {
                 if k.kind == event::KeyEventKind::Press {
                     if let KeyCode::Char(c) = k.code {
                         lines.push_char(c, &mut stdout)?;
-                    } else if k.code == KeyCode::Backspace && lines.x() > 2 {
+                    } else if k.code == KeyCode::Backspace && lines.x() >= 2 {
                         //TODO implement ctrl backspace
                         lines.pop_char(&mut stdout)?;
                     } else if k.code == KeyCode::Enter {
