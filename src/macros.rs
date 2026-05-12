@@ -21,7 +21,7 @@ macro_rules! rerender_current_line {
         $stdout.execute(Clear(ClearType::UntilNewLine))?; //Line cleanup
         write!($stdout, "{c_line} ")?;
 
-        for i in $lines.lines[c_line as usize].line.chars() {
+        for i in $lines.lines[c_line as usize].chars() {
             write!($stdout, "{i}")?;
         }
         $stdout.execute(crossterm::cursor::Show)?;

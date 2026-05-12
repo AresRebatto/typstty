@@ -6,7 +6,7 @@ use super::line::*;
 use std::io::{Cursor, Stdout, Write, stdout};
 
 pub struct Lines {
-    lines: Vec<Line>,
+    lines: Vec<String>,
     actual_line: u16,
     pub cursor_position: (u16, u16),
 }
@@ -20,7 +20,7 @@ impl Lines {
             cursor_position: (2, 0),
         };
 
-        ob.lines.push(Line::new()); //The first line
+        ob.lines.push(String::new()); //The first line
 
         ob
     }
@@ -52,13 +52,12 @@ impl Lines {
             }
 
             // Append the character to the internal buffer and echo it to the terminal.
-            self.lines[self.actual_line as usize].push_ch(c);
+            self.lines[self.actual_line as usize].push(c);
             write!(stdout, "{c}")?;
             stdout.flush()?;
         } else {
             // Insert the character mid-line and rerender to shift trailing text right.
             self.lines[self.actual_line as usize]
-                .line
                 .insert((self.cursor_position.0 - 2) as usize, c);
             rerender_current_line!(stdout, self.cursor_position, self);
         }
@@ -83,7 +82,7 @@ impl Lines {
             if self.is_eol() {
                 // Cursor is at the end of the line: pop the last character,
                 // move the cursor back, and overwrite the vacated cell with a space.
-                self.lines[self.actual_line as usize].pop_ch();
+                self.lines[self.actual_line as usize].pop();
                 self.cursor_position.0 -= 1;
                 cursor_repositioning!(stdout, self.cursor_position);
                 write!(stdout, " ")?;
@@ -93,9 +92,7 @@ impl Lines {
                 // Cursor is in the middle of the line: remove the character to the
                 // left of the cursor and rerender the line to close the resulting gap.
                 self.lines[self.actual_line as usize]
-                    .line
                     .remove((self.cursor_position.0 - 3) as usize);
-                log(format!("{}", self.lines[self.actual_line as usize].line));
                 self.cursor_position.0 -= 1;
                 rerender_current_line!(stdout, self.cursor_position, self);
                 cursor_repositioning!(stdout, self.cursor_position);
@@ -109,12 +106,11 @@ impl Lines {
 
                 // Remember where the previous line ended so we can restore the cursor there.
                 let x_coordinate =
-                    (self.lines[(self.actual_line - 1) as usize].line.len() + 2) as u16;
+                    (self.lines[(self.actual_line - 1) as usize].len() + 2) as u16;
 
                 erease_current_line!(stdout, self.cursor_position, self);
-                let popped = self.lines.pop().unwrap().line;
+                let popped = self.lines.pop().unwrap();
                 self.lines[(self.actual_line - 1) as usize]
-                    .line
                     .push_str(popped.as_str());
 
                 // Move up to the previous line, placing the cursor at the merge point.
@@ -151,12 +147,12 @@ impl Lines {
 
             if self.is_eof() {
                 // Cursor is on the last line: simply append a new empty line.
-                self.lines.push(Line::new());
+                self.lines.push(String::new());
             } else {
                 // Cursor is in the middle of the buffer: insert the new line and
                 // rerender every following line to push them one row down.
                 self.lines
-                    .insert((self.actual_line + 1) as usize, Line::new());
+                    .insert((self.actual_line + 1) as usize, String::new());
                 for i in self.cursor_position.1..(self.lines.len()) as u16 {
                     rerender_current_line!(stdout, (2, i), self);
                 }
@@ -218,7 +214,7 @@ impl Lines {
     }
 
     fn end_current_line(&self) -> u16 {
-        return self.lines[self.actual_line as usize].line.len() as u16;
+        return self.lines[self.actual_line as usize].len() as u16;
     }
 
     //---------------------------------------------------
