@@ -57,10 +57,12 @@ impl Lines {
             rerender_current_line!(stdout, self.cursor_position, self);
         }
 
-        //FIXME not a real bug, but this here with the inserting in the
-        // middle of the line envolve in buggy things
+        
         self.cursor_position.0 += 1;
         cursor_repositioning!(stdout, self.cursor_position);
+        
+        //TODO manage the columns overflow
+        
         return Ok(());
     }
 
@@ -79,13 +81,7 @@ impl Lines {
                 //TODO manage the character in the middle of line
             }
         } else {
-        	/*
-            *	Verificare se ci sono righe dopo quella corrente
-            * 	Se ci sono righe correnti, portare la riga corrente affianco a quella antecedente,
-            * 	quindi traslare tutte le dopo la corrente indietro di 1. Cancellare l'ultimo numero
-            * Se la rica corrente è l'ultima, portare la righa corrente affianco a quella antecedente,
-            * quindi togliere il numero a quella corrente
-            */
+            
             if self.is_eof() && self.lines.len() > 1 {
                 cursor_repositioning!(stdout, (0, self.y()));
                 write!(stdout, "~")?;
@@ -104,7 +100,7 @@ impl Lines {
                 self.cursor_position.1 -= 1;
                 self.cursor_position.0 = x_coordinate;
                 self.actual_line -= 1;
-                
+
                 rerender_current_line!(stdout, self.cursor_position, self);
                 cursor_repositioning!(stdout, self.cursor_position);
             } else {
@@ -119,24 +115,37 @@ impl Lines {
     }
 
     pub fn newline(&mut self, stdout: &mut Stdout) -> std::io::Result<()> {
-        //set the line number
-        if self.is_current_line_empty() {
-            cursor_repositioning!(stdout, (0, self.y()));
-            let n_line = self.y();
-            write!(stdout, "{n_line}")?;
-            stdout.flush()?;
+        if self.is_eol() {
+            //set the line number
+            if self.is_current_line_empty() {
+                cursor_repositioning!(stdout, (0, self.y()));
+                let n_line = self.y();
+                write!(stdout, "{n_line}")?;
+                stdout.flush()?;
+                cursor_repositioning!(stdout, self.cursor_position);
+            }
+
+            //create new line
+            if self.is_eof() {
+                self.lines.push(Line::new())
+            } else {
+                self.lines
+                    .insert((self.actual_line + 1) as usize, Line::new());
+
+                for i in self.cursor_position.1..(self.lines.len()) as u16 {
+                    rerender_current_line!(stdout, (2, i), self);
+                }
+            }
+            self.cursor_position.1 += 1;
+            self.cursor_position.0 = 2;
+            self.actual_line += 1;
+
             cursor_repositioning!(stdout, self.cursor_position);
+        } else {
+        	//TODO manage the case new line is in the middle of the line
         }
-
-        //create new line
-        if (self.y() + 1) as usize == self.lines.len() {
-            self.lines.push(Line::new())
-        }
-        self.cursor_position.1 += 1;
-        self.cursor_position.0 = 2;
-        self.actual_line += 1;
-        cursor_repositioning!(stdout, self.cursor_position);
-
+        
+        //TODO manage row overflow
         return Ok(());
     }
 

@@ -13,6 +13,7 @@ use std::io::{Stdout, stdout};
 use typstty::text_buffer::lines::*;
 
 fn main() -> std::io::Result<()> {
+	
     let mut stdout: Stdout = stdout();
     let original_size = size().unwrap();
 
