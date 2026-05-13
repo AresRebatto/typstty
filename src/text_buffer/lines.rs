@@ -1,8 +1,9 @@
 use super::super::debug_log::log;
-use crate::text_buffer::line;
 
-use super::super::{cursor_repositioning, erease_current_line, rerender_current_line};
-use super::line::*;
+use super::super::{
+    cursor_repositioning, erease_current_line, rerender_current_line,
+    rerender_lines_from_current_position,
+};
 use std::io::{Cursor, Stdout, Write, stdout};
 
 pub struct Lines {
@@ -57,9 +58,8 @@ impl Lines {
             stdout.flush()?;
         } else {
             // Insert the character mid-line and rerender to shift trailing text right.
-            self.lines[self.actual_line as usize]
-                .insert((self.cursor_position.0 - 2) as usize, c);
-            rerender_current_line!(stdout, self.cursor_position, self);
+            self.lines[self.actual_line as usize].insert((self.cursor_position.0 - 2) as usize, c);
+            rerender_current_line!(stdout, self.cursor_position.1, self);
         }
 
         // Advance the cursor past the newly inserted character.
@@ -91,10 +91,9 @@ impl Lines {
             } else {
                 // Cursor is in the middle of the line: remove the character to the
                 // left of the cursor and rerender the line to close the resulting gap.
-                self.lines[self.actual_line as usize]
-                    .remove((self.cursor_position.0 - 3) as usize);
+                self.lines[self.actual_line as usize].remove((self.cursor_position.0 - 3) as usize);
                 self.cursor_position.0 -= 1;
-                rerender_current_line!(stdout, self.cursor_position, self);
+                rerender_current_line!(stdout, self.cursor_position.1, self);
                 cursor_repositioning!(stdout, self.cursor_position);
             }
         } else {
@@ -105,23 +104,33 @@ impl Lines {
                 write!(stdout, "~")?;
 
                 // Remember where the previous line ended so we can restore the cursor there.
-                let x_coordinate =
-                    (self.lines[(self.actual_line - 1) as usize].len() + 2) as u16;
+                let x_coordinate = (self.lines[(self.actual_line - 1) as usize].len() + 2) as u16;
 
-                erease_current_line!(stdout, self.cursor_position, self);
+                erease_current_line!(stdout, self.cursor_position.1, self);
                 let popped = self.lines.pop().unwrap();
-                self.lines[(self.actual_line - 1) as usize]
-                    .push_str(popped.as_str());
+                self.lines[(self.actual_line - 1) as usize].push_str(popped.as_str());
 
                 // Move up to the previous line, placing the cursor at the merge point.
                 self.cursor_position.1 -= 1;
                 self.cursor_position.0 = x_coordinate;
                 self.actual_line -= 1;
-                rerender_current_line!(stdout, self.cursor_position, self);
+                rerender_current_line!(stdout, self.cursor_position.1, self);
                 cursor_repositioning!(stdout, self.cursor_position);
             } else {
-                // TODO: handle backspace at the start of a non-last line
-                // (requires shifting subsequent lines up).
+            	
+                self.actual_line -= 1;
+                self.cursor_position.1 -= 1;
+                let new_x = self.end_current_line() + 2;
+                let current_line = self.lines[(self.actual_line + 1) as usize].clone();
+                self.lines[self.actual_line as usize].push_str(&current_line);
+
+                self.lines.remove((self.actual_line + 1) as usize);
+
+                rerender_lines_from_current_position!(stdout, self);
+                //FIXME need to erase even the line number 
+                erease_current_line!(stdout, self.lines.len() as u16, self);
+                self.cursor_position.0 = new_x;
+                cursor_repositioning!(stdout, self.cursor_position);
             }
         }
         Ok(())
@@ -153,9 +162,7 @@ impl Lines {
                 // rerender every following line to push them one row down.
                 self.lines
                     .insert((self.actual_line + 1) as usize, String::new());
-                for i in self.cursor_position.1..(self.lines.len()) as u16 {
-                    rerender_current_line!(stdout, (2, i), self);
-                }
+                rerender_lines_from_current_position!(stdout, self);
             }
 
             // Move the cursor to the beginning of the newly created line.

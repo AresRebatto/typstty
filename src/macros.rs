@@ -8,13 +8,12 @@ macro_rules! cursor_repositioning {
 
 #[macro_export]
 macro_rules! rerender_current_line {
-    ($stdout:expr, $pos:expr, $lines:expr) => {{
+    ($stdout:expr, $current_line:expr, $lines:expr) => {{
         use crossterm::ExecutableCommand;
         use crossterm::terminal::Clear;
         use crossterm::terminal::ClearType;
-
-        //current line
-        let c_line = $pos.1;
+        
+        let c_line = $current_line;
 
         $stdout.execute(crossterm::cursor::Hide)?;
         $stdout.execute(crossterm::cursor::MoveTo(0, c_line))?;
@@ -30,11 +29,21 @@ macro_rules! rerender_current_line {
 
 #[macro_export]
 macro_rules! erease_current_line {
-    ($stdout:expr, $pos:expr, $lines:expr) => {{
+    ($stdout:expr, $line:expr, $lines:expr) => {{
         use crossterm::ExecutableCommand;
         use crossterm::terminal::Clear;
         use crossterm::terminal::ClearType;
-        $stdout.execute(crossterm::cursor::MoveTo(2, $pos.1))?;
+        $stdout.execute(crossterm::cursor::MoveTo(2, $line))?;
         $stdout.execute(Clear(ClearType::UntilNewLine))?;
     }};
+}
+
+#[macro_export]
+macro_rules!  rerender_lines_from_current_position{
+    ($stdout:expr,  $lines:expr) => {
+	    for i in $lines.cursor_position.1..($lines.lines.len()) as u16 {
+	        rerender_current_line!($stdout, i, $lines);
+	    }
+
+    };
 }
