@@ -117,7 +117,6 @@ impl Lines {
                 rerender_current_line!(stdout, self.cursor_position.1, self);
                 cursor_repositioning!(stdout, self.cursor_position);
             } else {
-            	
                 self.actual_line -= 1;
                 self.cursor_position.1 -= 1;
                 let new_x = self.end_current_line() + 2;
@@ -127,8 +126,11 @@ impl Lines {
                 self.lines.remove((self.actual_line + 1) as usize);
 
                 rerender_lines_from_current_position!(stdout, self);
-                //FIXME need to erase even the line number 
+
+                cursor_repositioning!(stdout, (0, self.lines.len() as u16));
+                write!(stdout, "~")?;
                 erease_current_line!(stdout, self.lines.len() as u16, self);
+
                 self.cursor_position.0 = new_x;
                 cursor_repositioning!(stdout, self.cursor_position);
             }
