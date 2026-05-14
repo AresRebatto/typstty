@@ -4,6 +4,7 @@ use super::super::{
     cursor_repositioning, erease_current_line, rerender_current_line,
     rerender_lines_from_current_position,
 };
+use std::fs::File;
 use std::io::{Cursor, Stdout, Write, stdout};
 
 pub struct Lines {
@@ -133,9 +134,21 @@ impl Lines {
             self.actual_line += 1;
             cursor_repositioning!(stdout, self.cursor_position);
         } else {
-            // TODO: split the current line at the cursor position and move the
-            // trailing text to the new line below.
+            let split_index = (self.cursor_position.0 - 2) as usize;
+            let tail = self.lines[self.actual_line].split_off(split_index);
+
+            if self.is_eof() {
+                self.lines.push(tail);
+            } else {
+                self.lines.insert(self.actual_line + 1, tail);
+            }
+
+            // Rerender the now-truncated current line to erase the trailing text,
+            // then rerender all following lines to push them one row down.
+            rerender_current_line!(stdout, self.cursor_position.1, self);
+            rerender_lines_from_current_position!(stdout, self);
         }
+
 
         // TODO: handle the case where the new line would overflow the terminal height.
         Ok(())
@@ -182,6 +195,12 @@ impl Lines {
         Ok(())
     }
 
+    pub fn save(&self, file: &mut File) -> std::io::Result<()> {
+        for line in self.lines.clone() {
+            writeln!(file, "{line}")?;
+        }
+        return Ok(());
+    }
     //---------------------------------------------------
     // SUPPORT FUNCTIONS
     //---------------------------------------------------
