@@ -1,4 +1,3 @@
 # typstty
 
-A small terminal-based text editor that allows you to write and view typst 
-documents
+A small desktop text editor that lets you write and render Typst documents
