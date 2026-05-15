@@ -47,29 +47,26 @@ impl Lines {
     /// Insert `c` at the current cursor position and advance the cursor.
     pub fn push_char(&mut self, c: char) {
         let col = self.col();
-        self.lines[self.actual_line].insert(col, c);
+        let byte_idx = Self::char_to_byte_offset(&self.lines[self.actual_line], col);
+        self.lines[self.actual_line].insert(byte_idx, c);
         self.cursor.0 += 1;
     }
 
-    /// Backspace: remove the character immediately before the cursor.
-    ///
-    /// If the cursor is at the beginning of a line, merges the current line
-    /// into the previous one (mirroring the original `merge_with_previous_line`).
     pub fn pop_char(&mut self) {
         if self.col() == 0 {
             self.merge_with_previous_line();
             return;
         }
-
         let col = self.col();
-        self.lines[self.actual_line].remove(col - 1);
+        let byte_idx = Self::char_to_byte_offset(&self.lines[self.actual_line], col - 1);
+        self.lines[self.actual_line].remove(byte_idx);
         self.cursor.0 -= 1;
     }
-
     /// Enter: split the current line at the cursor, push the tail onto a new line.
     pub fn newline(&mut self) {
         let col = self.col();
-        let tail = self.lines[self.actual_line].split_off(col);
+        let byte_idx = Self::char_to_byte_offset(&self.lines[self.actual_line], col);
+        let tail = self.lines[self.actual_line].split_off(byte_idx);
 
         if self.is_eof() {
             self.lines.push(tail);
@@ -165,17 +162,21 @@ impl Lines {
 
     fn merge_with_previous_line(&mut self) {
         if self.actual_line == 0 {
-            return; // Nothing above to merge into.
+            return;
         }
-
         let current = self.lines.remove(self.actual_line);
         self.actual_line -= 1;
         self.cursor.1 -= 1;
 
-        // Place the cursor at the old end of the previous line before appending.
-        let prev_len = self.lines[self.actual_line].len();
-        self.cursor.0 = prev_len;
-
+        let prev_char_count = self.lines[self.actual_line].chars().count();
+        self.cursor.0 = prev_char_count;
         self.lines[self.actual_line].push_str(&current);
+    }
+
+    fn char_to_byte_offset(s: &str, char_offset: usize) -> usize {
+        s.char_indices()
+            .nth(char_offset)
+            .map(|(byte_idx, _)| byte_idx)
+            .unwrap_or(s.len())
     }
 }

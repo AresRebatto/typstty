@@ -7,9 +7,9 @@ use crate::text_buffer::lines::Lines;
 
 // ─── Palette ────────────────────────────────────────────────────────────────
 
-const BG: Color32 = Color32::from_rgb(30, 30, 46);          // base
-const GUTTER_BG: Color32 = Color32::from_rgb(24, 24, 37);   // mantle
-const LINE_NUM: Color32 = Color32::from_rgb(88, 91, 112);    // overlay0
+const BG: Color32 = Color32::from_rgb(30, 30, 46); // base
+const GUTTER_BG: Color32 = Color32::from_rgb(24, 24, 37); // mantle
+const LINE_NUM: Color32 = Color32::from_rgb(88, 91, 112); // overlay0
 const LINE_NUM_ACTIVE: Color32 = Color32::from_rgb(166, 173, 200); // text
 const TEXT_COLOR: Color32 = Color32::from_rgb(205, 214, 244); // text
 const CURSOR_COLOR: Color32 = Color32::from_rgb(137, 180, 250); // blue
@@ -19,7 +19,7 @@ const CURRENT_LINE_HL: Color32 = Color32::from_rgba_premultiplied(49, 50, 68, 18
 const FONT_SIZE: f32 = 15.0;
 const GUTTER_WIDTH: f32 = 48.0;
 const LINE_PADDING: f32 = 2.0; // extra vertical padding per line
-const H_PADDING: f32 = 8.0;    // left padding after gutter
+const H_PADDING: f32 = 8.0; // left padding after gutter
 
 // ─── App ────────────────────────────────────────────────────────────────────
 
@@ -114,7 +114,7 @@ impl TypsttyApp {
                 if i.key_pressed(Key::S) {
                     self.save();
                 }
-                // Ctrl-Z / Ctrl-Y (undo/redo) could be wired here later.
+                // TODO Ctrl-Z / Ctrl-Shift-Z (undo/redo) could be wired here later.
                 return;
             }
 
@@ -180,9 +180,9 @@ impl TypsttyApp {
         modified
     }
 
-    // ── Rendering ───────────────────────────────────────────────────────────
+    // -- Rendering ───────────────────────────────────────────────────────────
 
-    fn paint_editor(&mut self, ui: &mut egui::Ui, char_w: f32,  ctx: &egui::Context, line_h: f32) {
+    fn paint_editor(&mut self, ui: &mut egui::Ui, char_w: f32, ctx: &egui::Context, line_h: f32) {
         let available = ui.available_rect_before_wrap();
         let painter = ui.painter_at(available);
 
@@ -190,10 +190,8 @@ impl TypsttyApp {
         painter.rect_filled(available, 0.0, BG);
 
         // Gutter background
-        let gutter_rect = Rect::from_min_size(
-            available.min,
-            Vec2::new(GUTTER_WIDTH, available.height()),
-        );
+        let gutter_rect =
+            Rect::from_min_size(available.min, Vec2::new(GUTTER_WIDTH, available.height()));
         painter.rect_filled(gutter_rect, 0.0, GUTTER_BG);
 
         let cursor_row = self.buffer.row();
@@ -214,7 +212,11 @@ impl TypsttyApp {
 
             // ── Line number ──────────────────────────────────────────────
             let num_str = (row_idx + 1).to_string();
-            let num_color = if row_idx == cursor_row { LINE_NUM_ACTIVE } else { LINE_NUM };
+            let num_color = if row_idx == cursor_row {
+                LINE_NUM_ACTIVE
+            } else {
+                LINE_NUM
+            };
             let num_x = available.min.x + GUTTER_WIDTH - H_PADDING;
             painter.text(
                 Pos2::new(num_x, y + LINE_PADDING),
@@ -236,14 +238,23 @@ impl TypsttyApp {
 
             // ── Cursor ───────────────────────────────────────────────────
             if row_idx == cursor_row && self.cursor_visible {
-	            let text_before_cursor = &line_text[..cursor_col];
-	            let cursor_x = text_x + ctx.fonts(|f| {
-	                f.layout_no_wrap(
-	                    text_before_cursor.to_owned(),
-	                    FontId::new(FONT_SIZE, FontFamily::Monospace),
-	                    TEXT_COLOR,
-	                )
-	            }).size().x;
+                let byte_idx = line_text
+                    .char_indices()
+                    .nth(cursor_col)
+                    .map(|(i, _)| i)
+                    .unwrap_or(line_text.len());
+                let text_before_cursor = &line_text[..byte_idx];
+                let cursor_x = text_x
+                    + ctx
+                        .fonts(|f| {
+                            f.layout_no_wrap(
+                                text_before_cursor.to_owned(),
+                                FontId::new(FONT_SIZE, FontFamily::Monospace),
+                                TEXT_COLOR,
+                            )
+                        })
+                        .size()
+                        .x;
                 let cursor_rect = Rect::from_min_size(
                     Pos2::new(cursor_x, y + LINE_PADDING),
                     Vec2::new(2.0, line_h - LINE_PADDING * 2.0),
@@ -311,11 +322,14 @@ impl eframe::App for TypsttyApp {
                     );
                     ui.separator();
                     ui.label(
-                        egui::RichText::new(self.file_path.file_name()
-                            .and_then(|n| n.to_str())
-                            .unwrap_or("untitled"))
-                            .color(LINE_NUM_ACTIVE)
-                            .font(FontId::new(FONT_SIZE, FontFamily::Monospace)),
+                        egui::RichText::new(
+                            self.file_path
+                                .file_name()
+                                .and_then(|n| n.to_str())
+                                .unwrap_or("untitled"),
+                        )
+                        .color(LINE_NUM_ACTIVE)
+                        .font(FontId::new(FONT_SIZE, FontFamily::Monospace)),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let pos_label = format!(
