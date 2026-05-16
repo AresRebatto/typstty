@@ -2,7 +2,7 @@ use eframe::egui::{self, Color32, FontFamily, FontId, Key, Modifiers, Pos2, Rect
 use std::fs::{File, OpenOptions};
 use std::io::Read;
 use std::path::PathBuf;
-use std::process::exit;
+use std::process::{Command, exit};
 
 use crate::text_buffer::lines::Lines;
 use typstty::highlight_span::*;
@@ -81,7 +81,7 @@ impl TypsttyApp {
         ctx.set_style(style);
     }
 
-    // ── Save ────────────────────────────────────────────────────────────────
+    // ── Save and Compile ────────────────────────────────────────────────────────────────
 
     fn save(&self) {
         let result = OpenOptions::new()
@@ -94,6 +94,24 @@ impl TypsttyApp {
         if let Err(e) = result {
             eprintln!("Save error: {e}");
         }
+    }
+
+    fn compile_typst(&self) -> Result<(), Box<dyn std::error::Error>> {
+        self.save();
+
+        //TODO use typst-pdf
+        let status = Command::new("typst")
+            .args([
+                "compile",
+                self.file_path.to_str().unwrap(),
+                &format!("{}.pdf", self.file_path.to_str().unwrap()),
+            ])
+            .status()?;
+
+        if !status.success() {
+            return Err("typst compile failed".into());
+        }
+        Ok(())
     }
 
     // ── Input handling ──────────────────────────────────────────────────────
@@ -131,6 +149,13 @@ impl TypsttyApp {
                 self.buffer.pop_word();
             } else if i.key_pressed(Key::Q) && i.modifiers.ctrl {
                 exit(0);
+            } else if i.key_pressed(Key::R) && i.modifiers.ctrl {
+                match self.compile_typst() {
+                    Ok(_) => {}
+                    Err(e) => {
+                        panic!("Error: {e}");
+                    }
+                }
             }
 
             // ── Editing ───────────────────────────────────────────────────
@@ -182,56 +207,71 @@ impl TypsttyApp {
     fn paint_editor(&mut self, ui: &mut egui::Ui, char_w: f32, ctx: &egui::Context, line_h: f32) {
         let available = ui.available_rect_before_wrap();
         let painter = ui.painter_at(available);
-    
+
         self.paint_backgrounds(&painter, available);
-    
+
         let full_text = self.buffer.full_text();
         let spans = compute_highlight(&full_text);
         let line_offsets = self.buffer.line_byte_offsets();
         let cursor_row = self.buffer.row();
         let cursor_col = self.buffer.col();
         let lines = self.buffer.lines().to_vec();
-    
+
         for (row_idx, line_text) in lines.iter().enumerate() {
             let y = available.min.y + row_idx as f32 * line_h;
             let text_x = available.min.x + GUTTER_WIDTH + H_PADDING;
-    
+
             if row_idx == cursor_row {
                 self.paint_current_line_highlight(&painter, available, y, line_h);
             }
-    
+
             self.paint_line_number(&painter, available, y, row_idx, cursor_row);
-    
+
             let segments = build_segments(line_text, row_idx, &line_offsets, &spans);
             self.paint_segments(ctx, &painter, &segments, text_x, y);
-    
+
             if row_idx == cursor_row && self.cursor_visible {
                 self.paint_cursor(ctx, &painter, line_text, cursor_col, text_x, y, line_h);
             }
         }
-    
+
         ui.allocate_rect(available, egui::Sense::click());
     }
-    
+
     fn paint_backgrounds(&self, painter: &egui::Painter, available: Rect) {
         painter.rect_filled(available, 0.0, BG);
-        let gutter_rect = Rect::from_min_size(
-            available.min,
-            Vec2::new(GUTTER_WIDTH, available.height()),
-        );
+        let gutter_rect =
+            Rect::from_min_size(available.min, Vec2::new(GUTTER_WIDTH, available.height()));
         painter.rect_filled(gutter_rect, 0.0, GUTTER_BG);
     }
-    
-    fn paint_current_line_highlight(&self, painter: &egui::Painter, available: Rect, y: f32, line_h: f32) {
+
+    fn paint_current_line_highlight(
+        &self,
+        painter: &egui::Painter,
+        available: Rect,
+        y: f32,
+        line_h: f32,
+    ) {
         let hl_rect = Rect::from_min_size(
             Pos2::new(available.min.x + GUTTER_WIDTH, y),
             Vec2::new(available.width() - GUTTER_WIDTH, line_h),
         );
         painter.rect_filled(hl_rect, 0.0, CURRENT_LINE_HL);
     }
-    
-    fn paint_line_number(&self, painter: &egui::Painter, available: Rect, y: f32, row_idx: usize, cursor_row: usize) {
-        let color = if row_idx == cursor_row { LINE_NUM_ACTIVE } else { LINE_NUM };
+
+    fn paint_line_number(
+        &self,
+        painter: &egui::Painter,
+        available: Rect,
+        y: f32,
+        row_idx: usize,
+        cursor_row: usize,
+    ) {
+        let color = if row_idx == cursor_row {
+            LINE_NUM_ACTIVE
+        } else {
+            LINE_NUM
+        };
         painter.text(
             Pos2::new(available.min.x + GUTTER_WIDTH - H_PADDING, y + LINE_PADDING),
             egui::Align2::RIGHT_TOP,
@@ -240,31 +280,57 @@ impl TypsttyApp {
             color,
         );
     }
-    
-    fn paint_segments(&self, ctx: &egui::Context, painter: &egui::Painter, segments: &[(&str, Color32)], text_x: f32, y: f32) {
+
+    fn paint_segments(
+        &self,
+        ctx: &egui::Context,
+        painter: &egui::Painter,
+        segments: &[(&str, Color32)],
+        text_x: f32,
+        y: f32,
+    ) {
         let mut x = text_x;
         for (text, color) in segments {
-            if text.is_empty() { continue; }
+            if text.is_empty() {
+                continue;
+            }
             let galley = ctx.fonts(|f| {
-                f.layout_no_wrap(text.to_string(), FontId::new(FONT_SIZE, FontFamily::Monospace), *color)
+                f.layout_no_wrap(
+                    text.to_string(),
+                    FontId::new(FONT_SIZE, FontFamily::Monospace),
+                    *color,
+                )
             });
             painter.galley(Pos2::new(x, y + LINE_PADDING), galley.clone(), *color);
             x += galley.size().x;
         }
     }
-    
-    fn paint_cursor(&self, ctx: &egui::Context, painter: &egui::Painter, line_text: &str, cursor_col: usize, text_x: f32, y: f32, line_h: f32) {
-        let byte_idx = line_text.char_indices()
+
+    fn paint_cursor(
+        &self,
+        ctx: &egui::Context,
+        painter: &egui::Painter,
+        line_text: &str,
+        cursor_col: usize,
+        text_x: f32,
+        y: f32,
+        line_h: f32,
+    ) {
+        let byte_idx = line_text
+            .char_indices()
             .nth(cursor_col)
             .map(|(i, _)| i)
             .unwrap_or(line_text.len());
-        let width = ctx.fonts(|f| {
-            f.layout_no_wrap(
-                line_text[..byte_idx].to_owned(),
-                FontId::new(FONT_SIZE, FontFamily::Monospace),
-                TEXT_COLOR,
-            )
-        }).size().x;
+        let width = ctx
+            .fonts(|f| {
+                f.layout_no_wrap(
+                    line_text[..byte_idx].to_owned(),
+                    FontId::new(FONT_SIZE, FontFamily::Monospace),
+                    TEXT_COLOR,
+                )
+            })
+            .size()
+            .x;
         painter.rect_filled(
             Rect::from_min_size(
                 Pos2::new(text_x + width, y + LINE_PADDING),
@@ -285,7 +351,8 @@ fn build_segments<'a>(
     let line_start = line_offsets[row_idx];
     let line_end = line_start + line_text.len();
 
-    let mut row_spans: Vec<&HighlightSpan> = spans.iter()
+    let mut row_spans: Vec<&HighlightSpan> = spans
+        .iter()
         .filter(|s| s.byte_range.start < line_end && s.byte_range.end > line_start)
         .collect();
     row_spans.sort_by_key(|s| s.byte_range.start);
@@ -294,8 +361,16 @@ fn build_segments<'a>(
     let mut cursor_in_line = 0usize;
 
     for span in &row_spans {
-        let local_start = span.byte_range.start.saturating_sub(line_start).min(line_text.len());
-        let local_end   = span.byte_range.end.saturating_sub(line_start).min(line_text.len());
+        let local_start = span
+            .byte_range
+            .start
+            .saturating_sub(line_start)
+            .min(line_text.len());
+        let local_end = span
+            .byte_range
+            .end
+            .saturating_sub(line_start)
+            .min(line_text.len());
 
         if cursor_in_line < local_start {
             segments.push((&line_text[cursor_in_line..local_start], TEXT_COLOR));
@@ -411,6 +486,12 @@ impl eframe::App for TypsttyApp {
                     ui.separator();
                     ui.label(
                         egui::RichText::new("Ctrl+Q  Quit")
+                            .color(LINE_NUM)
+                            .font(FontId::new(FONT_SIZE - 2.0, FontFamily::Monospace)),
+                    );
+                    ui.separator();
+                    ui.label(
+                        egui::RichText::new("Ctrl+R  Compile")
                             .color(LINE_NUM)
                             .font(FontId::new(FONT_SIZE - 2.0, FontFamily::Monospace)),
                     );
