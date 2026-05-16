@@ -64,7 +64,7 @@ impl TypsttyApp {
     // ── Font setup ──────────────────────────────────────────────────────────
 
     fn configure_fonts(ctx: &egui::Context) {
-        let mut fonts = egui::FontDefinitions::default();
+        let fonts = egui::FontDefinitions::default();
 
         ctx.set_fonts(fonts);
 
@@ -182,144 +182,138 @@ impl TypsttyApp {
     fn paint_editor(&mut self, ui: &mut egui::Ui, char_w: f32, ctx: &egui::Context, line_h: f32) {
         let available = ui.available_rect_before_wrap();
         let painter = ui.painter_at(available);
-
-        painter.rect_filled(available, 0.0, BG);
-        let gutter_rect =
-            Rect::from_min_size(available.min, Vec2::new(GUTTER_WIDTH, available.height()));
-        painter.rect_filled(gutter_rect, 0.0, GUTTER_BG);
-
-        // Calcola highlight sull'intero testo
+    
+        self.paint_backgrounds(&painter, available);
+    
         let full_text = self.buffer.full_text();
         let spans = compute_highlight(&full_text);
         let line_offsets = self.buffer.line_byte_offsets();
-
         let cursor_row = self.buffer.row();
         let cursor_col = self.buffer.col();
         let lines = self.buffer.lines().to_vec();
-
+    
         for (row_idx, line_text) in lines.iter().enumerate() {
             let y = available.min.y + row_idx as f32 * line_h;
             let text_x = available.min.x + GUTTER_WIDTH + H_PADDING;
-
-            // Current line highlight
+    
             if row_idx == cursor_row {
-                let hl_rect = Rect::from_min_size(
-                    Pos2::new(available.min.x + GUTTER_WIDTH, y),
-                    Vec2::new(available.width() - GUTTER_WIDTH, line_h),
-                );
-                painter.rect_filled(hl_rect, 0.0, CURRENT_LINE_HL);
+                self.paint_current_line_highlight(&painter, available, y, line_h);
             }
-
-            // Line number
-            let num_color = if row_idx == cursor_row {
-                LINE_NUM_ACTIVE
-            } else {
-                LINE_NUM
-            };
-            painter.text(
-                Pos2::new(available.min.x + GUTTER_WIDTH - H_PADDING, y + LINE_PADDING),
-                egui::Align2::RIGHT_TOP,
-                &(row_idx + 1).to_string(),
-                FontId::new(FONT_SIZE, FontFamily::Monospace),
-                num_color,
-            );
-
-            // ── Testo con highlight ──────────────────────────────────────────
-            let line_start = line_offsets[row_idx];
-            let line_end = line_start + line_text.len();
-
-            // Costruisci i segmenti colorati per questa riga
-            // Partiamo da offset 0 dentro la riga e avanziamo
-            let mut segments: Vec<(&str, Color32)> = Vec::new();
-            let mut cursor_in_line = 0usize; // byte offset dentro la riga
-
-            // Filtra e ordina gli span che toccano questa riga
-            let mut row_spans: Vec<&HighlightSpan> = spans
-                .iter()
-                .filter(|s| s.byte_range.start < line_end && s.byte_range.end > line_start)
-                .collect();
-            row_spans.sort_by_key(|s| s.byte_range.start);
-
-            for span in &row_spans {
-                // Converti in coordinate locali alla riga
-                let local_start = span
-                    .byte_range
-                    .start
-                    .saturating_sub(line_start)
-                    .min(line_text.len());
-                let local_end = span
-                    .byte_range
-                    .end
-                    .saturating_sub(line_start)
-                    .min(line_text.len());
-
-                // Gap non coperto prima di questo span → colore di default
-                if cursor_in_line < local_start {
-                    segments.push((&line_text[cursor_in_line..local_start], TEXT_COLOR));
-                }
-                if local_start < local_end {
-                    segments.push((&line_text[local_start..local_end], span.color));
-                }
-                cursor_in_line = cursor_in_line.max(local_end);
-            }
-            // Resto della riga non coperto
-            if cursor_in_line < line_text.len() {
-                segments.push((&line_text[cursor_in_line..], TEXT_COLOR));
-            }
-            // Riga vuota o nessuno span
-            if segments.is_empty() {
-                segments.push((line_text.as_str(), TEXT_COLOR));
-            }
-
-            // Disegna i segmenti avanzando x
-            let mut x = text_x;
-            for (text, color) in &segments {
-                if text.is_empty() {
-                    continue;
-                }
-                let galley = ctx.fonts(|f| {
-                    f.layout_no_wrap(
-                        text.to_string(),
-                        FontId::new(FONT_SIZE, FontFamily::Monospace),
-                        *color,
-                    )
-                });
-                painter.galley(Pos2::new(x, y + LINE_PADDING), galley.clone(), *color);
-                x += galley.size().x;
-            }
-
-            // ── Cursore ──────────────────────────────────────────────────────
+    
+            self.paint_line_number(&painter, available, y, row_idx, cursor_row);
+    
+            let segments = build_segments(line_text, row_idx, &line_offsets, &spans);
+            self.paint_segments(ctx, &painter, &segments, text_x, y);
+    
             if row_idx == cursor_row && self.cursor_visible {
-                let byte_idx = line_text
-                    .char_indices()
-                    .nth(cursor_col)
-                    .map(|(i, _)| i)
-                    .unwrap_or(line_text.len());
-                let text_before = &line_text[..byte_idx];
-                let cursor_x = text_x
-                    + ctx
-                        .fonts(|f| {
-                            f.layout_no_wrap(
-                                text_before.to_owned(),
-                                FontId::new(FONT_SIZE, FontFamily::Monospace),
-                                TEXT_COLOR,
-                            )
-                        })
-                        .size()
-                        .x;
-                painter.rect_filled(
-                    Rect::from_min_size(
-                        Pos2::new(cursor_x, y + LINE_PADDING),
-                        Vec2::new(2.0, line_h - LINE_PADDING * 2.0),
-                    ),
-                    0.0,
-                    CURSOR_COLOR,
-                );
+                self.paint_cursor(ctx, &painter, line_text, cursor_col, text_x, y, line_h);
             }
         }
-
+    
         ui.allocate_rect(available, egui::Sense::click());
     }
+    
+    fn paint_backgrounds(&self, painter: &egui::Painter, available: Rect) {
+        painter.rect_filled(available, 0.0, BG);
+        let gutter_rect = Rect::from_min_size(
+            available.min,
+            Vec2::new(GUTTER_WIDTH, available.height()),
+        );
+        painter.rect_filled(gutter_rect, 0.0, GUTTER_BG);
+    }
+    
+    fn paint_current_line_highlight(&self, painter: &egui::Painter, available: Rect, y: f32, line_h: f32) {
+        let hl_rect = Rect::from_min_size(
+            Pos2::new(available.min.x + GUTTER_WIDTH, y),
+            Vec2::new(available.width() - GUTTER_WIDTH, line_h),
+        );
+        painter.rect_filled(hl_rect, 0.0, CURRENT_LINE_HL);
+    }
+    
+    fn paint_line_number(&self, painter: &egui::Painter, available: Rect, y: f32, row_idx: usize, cursor_row: usize) {
+        let color = if row_idx == cursor_row { LINE_NUM_ACTIVE } else { LINE_NUM };
+        painter.text(
+            Pos2::new(available.min.x + GUTTER_WIDTH - H_PADDING, y + LINE_PADDING),
+            egui::Align2::RIGHT_TOP,
+            &(row_idx + 1).to_string(),
+            FontId::new(FONT_SIZE, FontFamily::Monospace),
+            color,
+        );
+    }
+    
+    fn paint_segments(&self, ctx: &egui::Context, painter: &egui::Painter, segments: &[(&str, Color32)], text_x: f32, y: f32) {
+        let mut x = text_x;
+        for (text, color) in segments {
+            if text.is_empty() { continue; }
+            let galley = ctx.fonts(|f| {
+                f.layout_no_wrap(text.to_string(), FontId::new(FONT_SIZE, FontFamily::Monospace), *color)
+            });
+            painter.galley(Pos2::new(x, y + LINE_PADDING), galley.clone(), *color);
+            x += galley.size().x;
+        }
+    }
+    
+    fn paint_cursor(&self, ctx: &egui::Context, painter: &egui::Painter, line_text: &str, cursor_col: usize, text_x: f32, y: f32, line_h: f32) {
+        let byte_idx = line_text.char_indices()
+            .nth(cursor_col)
+            .map(|(i, _)| i)
+            .unwrap_or(line_text.len());
+        let width = ctx.fonts(|f| {
+            f.layout_no_wrap(
+                line_text[..byte_idx].to_owned(),
+                FontId::new(FONT_SIZE, FontFamily::Monospace),
+                TEXT_COLOR,
+            )
+        }).size().x;
+        painter.rect_filled(
+            Rect::from_min_size(
+                Pos2::new(text_x + width, y + LINE_PADDING),
+                Vec2::new(2.0, line_h - LINE_PADDING * 2.0),
+            ),
+            0.0,
+            CURSOR_COLOR,
+        );
+    }
+}
+
+fn build_segments<'a>(
+    line_text: &'a str,
+    row_idx: usize,
+    line_offsets: &[usize],
+    spans: &'a [HighlightSpan],
+) -> Vec<(&'a str, Color32)> {
+    let line_start = line_offsets[row_idx];
+    let line_end = line_start + line_text.len();
+
+    let mut row_spans: Vec<&HighlightSpan> = spans.iter()
+        .filter(|s| s.byte_range.start < line_end && s.byte_range.end > line_start)
+        .collect();
+    row_spans.sort_by_key(|s| s.byte_range.start);
+
+    let mut segments = Vec::new();
+    let mut cursor_in_line = 0usize;
+
+    for span in &row_spans {
+        let local_start = span.byte_range.start.saturating_sub(line_start).min(line_text.len());
+        let local_end   = span.byte_range.end.saturating_sub(line_start).min(line_text.len());
+
+        if cursor_in_line < local_start {
+            segments.push((&line_text[cursor_in_line..local_start], TEXT_COLOR));
+        }
+        if local_start < local_end {
+            segments.push((&line_text[local_start..local_end], span.color));
+        }
+        cursor_in_line = cursor_in_line.max(local_end);
+    }
+
+    if cursor_in_line < line_text.len() {
+        segments.push((&line_text[cursor_in_line..], TEXT_COLOR));
+    }
+    if segments.is_empty() {
+        segments.push((line_text, TEXT_COLOR));
+    }
+
+    segments
 }
 
 // ─── eframe::App impl ───────────────────────────────────────────────────────
