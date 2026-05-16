@@ -108,72 +108,71 @@ impl TypsttyApp {
     fn handle_input(&mut self, ctx: &egui::Context) -> bool {
         let mut modified = false;
 
-        ctx.input(|i| {
+        ctx.input_mut(|i| {
             // ── Ctrl shortcuts ────────────────────────────────────────────
-            if i.modifiers.ctrl {
-                if i.key_pressed(Key::S) {
-                    self.save();
-                }
-                // TODO Ctrl-Z / Ctrl-Shift-Z (undo/redo) could be wired here later.
-                return;
+            if i.consume_key(Modifiers::CTRL, Key::S) {
+                self.save();
             }
+            // TODO Ctrl-Z / Ctrl-Shift-Z (undo/redo) could be wired here later.
 
             // ── Navigation ────────────────────────────────────────────────
-            if i.key_pressed(Key::ArrowLeft) {
+
+            // Navigation
+            if i.consume_key(Modifiers::CTRL, Key::ArrowRight) {
+                self.buffer.move_ctrl_right();
+            } else if i.consume_key(Modifiers::CTRL, Key::ArrowRight) {
+            } else if i.key_pressed(Key::ArrowLeft) {
                 self.buffer.move_left();
-            }
-            if i.key_pressed(Key::ArrowRight) {
+            } else if i.key_pressed(Key::ArrowRight) {
                 self.buffer.move_right();
-            }
-            if i.key_pressed(Key::ArrowUp) {
+            } else if i.key_pressed(Key::ArrowUp) {
                 self.buffer.move_up();
-            }
-            if i.key_pressed(Key::ArrowDown) {
+            } else if i.key_pressed(Key::ArrowDown) {
                 self.buffer.move_down();
-            }
-            if i.key_pressed(Key::Home) {
+            } else if i.key_pressed(Key::Home) {
                 self.buffer.move_home();
-            }
-            if i.key_pressed(Key::End) {
+            } else if i.key_pressed(Key::End) {
                 self.buffer.move_end();
             }
 
             // ── Editing ───────────────────────────────────────────────────
-            if i.key_pressed(Key::Enter) {
-                self.buffer.newline();
-                modified = true;
-            }
-            if i.key_pressed(Key::Backspace) {
-                self.buffer.pop_char();
-                modified = true;
-            }
-            if i.key_pressed(Key::Delete) {
-                // Delete = move right then backspace (delete char under cursor).
-                let old_col = self.buffer.col();
-                let old_row = self.buffer.row();
-                self.buffer.move_right();
-                if self.buffer.col() != old_col || self.buffer.row() != old_row {
+            if !i.modifiers.ctrl {
+                if i.key_pressed(Key::Enter) {
+                    self.buffer.newline();
+                    modified = true;
+                }
+                if i.key_pressed(Key::Backspace) {
                     self.buffer.pop_char();
                     modified = true;
                 }
-            }
+                if i.key_pressed(Key::Delete) {
+                    // Delete = move right then backspace (delete char under cursor).
+                    let old_col = self.buffer.col();
+                    let old_row = self.buffer.row();
+                    self.buffer.move_right();
+                    if self.buffer.col() != old_col || self.buffer.row() != old_row {
+                        self.buffer.pop_char();
+                        modified = true;
+                    }
+                }
 
-            // ── Printable characters ──────────────────────────────────────
-            for event in &i.events {
-                if let egui::Event::Text(text) = event {
-                    for c in text.chars() {
-                        self.buffer.push_char(c);
+                // ── Printable characters ──────────────────────────────────────
+                for event in &i.events {
+                    if let egui::Event::Text(text) = event {
+                        for c in text.chars() {
+                            self.buffer.push_char(c);
+                        }
+                        modified = true;
+                    }
+                }
+
+                // Tab → insert 4 spaces (common for .typ files)
+                if i.key_pressed(Key::Tab) {
+                    for _ in 0..4 {
+                        self.buffer.push_char(' ');
                     }
                     modified = true;
                 }
-            }
-
-            // Tab → insert 4 spaces (common for .typ files)
-            if i.key_pressed(Key::Tab) {
-                for _ in 0..4 {
-                    self.buffer.push_char(' ');
-                }
-                modified = true;
             }
         });
 

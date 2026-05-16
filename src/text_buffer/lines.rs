@@ -100,6 +100,20 @@ impl Lines {
         }
     }
 
+    pub fn move_ctrl_right(&mut self) {
+        let line_char_len = self.lines[self.actual_line].chars().count();
+
+        if self.col() < line_char_len {
+            let current_col = self.col();
+            let new_col = self.next_word_boundary(current_col, line_char_len);
+            self.cursor.0 = new_col;
+        } else if !self.is_eof() {
+            self.actual_line += 1;
+            self.cursor.1 += 1;
+            self.cursor.0 = 0;
+        }
+    }
+
     /// Move the cursor one row up, clamping the column to the new line length.
     pub fn move_up(&mut self) {
         if self.actual_line > 0 {
@@ -152,7 +166,7 @@ impl Lines {
     // -----------------------------------------------------------------------
 
     fn current_line_len(&self) -> usize {
-        self.lines[self.actual_line].len()
+        self.lines[self.actual_line].chars().count()
     }
 
     #[inline]
@@ -178,5 +192,37 @@ impl Lines {
             .nth(char_offset)
             .map(|(byte_idx, _)| byte_idx)
             .unwrap_or(s.len())
+    }
+
+    fn next_word_boundary(&self, from_char: usize, line_char_len: usize) -> usize {
+        let line = &self.lines[self.actual_line];
+        let chars: Vec<(usize, char)> = line.char_indices().collect();
+
+        // Skippa spazi sulla posizione corrente
+        let after_spaces = chars
+            .iter()
+            .skip(from_char)
+            .skip_while(|&&(_, c)| c.is_whitespace())
+            .next()
+            .map(|&(_, _)| ())
+            .map(|_| {
+                chars
+                    .iter()
+                    .skip(from_char)
+                    .take_while(|&&(_, c)| c.is_whitespace())
+                    .count()
+            })
+            .unwrap_or(0);
+
+        let start = from_char + after_spaces;
+
+        // Poi skippa la parola
+        let word_len = chars
+            .iter()
+            .skip(start)
+            .take_while(|&&(_, c)| !c.is_whitespace())
+            .count();
+
+        (start + word_len).min(line_char_len)
     }
 }
