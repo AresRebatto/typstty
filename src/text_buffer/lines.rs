@@ -39,6 +39,20 @@ impl Lines {
     pub fn row(&self) -> usize {
         self.cursor.1
     }
+    
+    pub fn full_text(&self) -> String {
+        self.lines.join("\n")
+    }
+    
+    pub fn line_byte_offsets(&self) -> Vec<usize> {
+        let mut offsets = Vec::with_capacity(self.lines.len());
+        let mut acc = 0usize;
+        for line in &self.lines {
+            offsets.push(acc);
+            acc += line.len() + 1; // +1 per il \n
+        }
+        offsets
+    }
 
     // -----------------------------------------------------------------------
     // Editing primitives
