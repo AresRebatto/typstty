@@ -2,6 +2,7 @@ use eframe::egui::{self, Color32, FontFamily, FontId, Key, Modifiers, Pos2, Rect
 use std::fs::{File, OpenOptions};
 use std::io::Read;
 use std::path::PathBuf;
+use std::process::exit;
 
 use crate::text_buffer::lines::Lines;
 
@@ -58,19 +59,6 @@ impl TypsttyApp {
     fn configure_fonts(ctx: &egui::Context) {
         let mut fonts = egui::FontDefinitions::default();
 
-        // Register JetBrains Mono if bundled, otherwise fall back to the
-        // built-in monospace family (the macro below makes this safe).
-        // To bundle: place JetBrainsMono-Regular.ttf in assets/ and add to Cargo.toml:
-        //   [package.metadata.bundle] resources = ["assets"]
-        // Then uncomment:
-        //
-        // fonts.font_data.insert(
-        //     "JetBrainsMono".to_owned(),
-        //     egui::FontData::from_static(include_bytes!("../../assets/JetBrainsMono-Regular.ttf")),
-        // );
-        // fonts.families.get_or_insert_with(&FontFamily::Monospace, Vec::new)
-        //     .insert(0, "JetBrainsMono".to_owned());
-
         ctx.set_fonts(fonts);
 
         let mut style = (*ctx.style()).clone();
@@ -116,11 +104,10 @@ impl TypsttyApp {
             // TODO Ctrl-Z / Ctrl-Shift-Z (undo/redo) could be wired here later.
 
             // ── Navigation ────────────────────────────────────────────────
-
-            // Navigation
             if i.consume_key(Modifiers::CTRL, Key::ArrowRight) {
                 self.buffer.move_ctrl_right();
-            } else if i.consume_key(Modifiers::CTRL, Key::ArrowRight) {
+            } else if i.consume_key(Modifiers::CTRL, Key::ArrowLeft) {
+                self.buffer.move_ctrl_left();
             } else if i.key_pressed(Key::ArrowLeft) {
                 self.buffer.move_left();
             } else if i.key_pressed(Key::ArrowRight) {
@@ -133,6 +120,10 @@ impl TypsttyApp {
                 self.buffer.move_home();
             } else if i.key_pressed(Key::End) {
                 self.buffer.move_end();
+            } else if i.consume_key(Modifiers::CTRL, Key::Backspace) {
+                self.buffer.pop_word();
+            } else if i.key_pressed(Key::Q) && i.modifiers.ctrl {
+                exit(0);
             }
 
             // ── Editing ───────────────────────────────────────────────────
@@ -361,7 +352,7 @@ impl eframe::App for TypsttyApp {
                     );
                     ui.separator();
                     ui.label(
-                        egui::RichText::new("Ctrl+C  Quit")
+                        egui::RichText::new("Ctrl+Q  Quit")
                             .color(LINE_NUM)
                             .font(FontId::new(FONT_SIZE - 2.0, FontFamily::Monospace)),
                     );

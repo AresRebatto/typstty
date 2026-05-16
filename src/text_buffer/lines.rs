@@ -62,6 +62,24 @@ impl Lines {
         self.lines[self.actual_line].remove(byte_idx);
         self.cursor.0 -= 1;
     }
+    
+    pub fn pop_word(&mut self) {
+        if self.col() == 0 {
+            self.merge_with_previous_line();
+            return;
+        }
+    
+        let target = self.prev_word_boundary(self.col());
+        let chars_to_remove = self.col() - target;
+    
+        for _ in 0..chars_to_remove {
+            let col = self.col();
+            let byte_idx = Self::char_to_byte_offset(&self.lines[self.actual_line], col - 1);
+            self.lines[self.actual_line].remove(byte_idx);
+            self.cursor.0 -= 1;
+        }
+    }
+    
     /// Enter: split the current line at the cursor, push the tail onto a new line.
     pub fn newline(&mut self) {
         let col = self.col();
@@ -111,6 +129,17 @@ impl Lines {
             self.actual_line += 1;
             self.cursor.1 += 1;
             self.cursor.0 = 0;
+        }
+    }
+    
+    pub fn move_ctrl_left(&mut self) {
+        if self.col() > 0 {
+            let current_col = self.col();
+            self.cursor.0 = self.prev_word_boundary(current_col);
+        } else if self.actual_line > 0 {
+            self.actual_line -= 1;
+            self.cursor.1 -= 1;
+            self.cursor.0 = self.current_line_len();
         }
     }
 
@@ -224,5 +253,23 @@ impl Lines {
             .count();
 
         (start + word_len).min(line_char_len)
+    }
+    
+    fn prev_word_boundary(&self, from_char: usize) -> usize {
+        let line = &self.lines[self.actual_line];
+        let chars: Vec<char> = line.chars().collect();
+    
+        let mut col = from_char;
+    
+        // Skip space immediatly left
+        while col > 0 && chars[col - 1].is_whitespace() {
+            col -= 1;
+        }
+        // Skip word characters
+        while col > 0 && !chars[col - 1].is_whitespace() {
+            col -= 1;
+        }
+    
+        col
     }
 }
