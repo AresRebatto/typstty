@@ -1,4 +1,4 @@
-use eframe::App;
+use super::super::debug_log::*;
 use eframe::egui::{self, Color32, FontFamily, FontId, Key, Modifiers, Pos2, Rect, Stroke, Vec2};
 use std::fs::{File, OpenOptions};
 use std::io::Read;
@@ -87,7 +87,7 @@ impl TypsttyApp {
             self.buffer = snap.buffer;
         }
     }
-    
+
     // ── Font setup ──────────────────────────────────────────────────────────
 
     fn configure_fonts(ctx: &egui::Context) {
@@ -147,42 +147,49 @@ impl TypsttyApp {
     /// Returns `true` if the buffer was modified (to reset the cursor blink).
     fn handle_input(&mut self, ctx: &egui::Context) -> bool {
         let mut modified = false;
-    
+
         ctx.input_mut(|i| {
             if i.consume_key(Modifiers::CTRL, Key::S) {
                 self.save_to_file();
             }
-            if i.consume_key(Modifiers::CTRL, Key::Z) {
-                self.undo();
-                return; // non pushare snapshot dopo un undo
-            }
-            if i.consume_key(Modifiers::CTRL | Modifiers::SHIFT, Key::Z) {
+
+            if i.consume_key(
+                egui::Modifiers {
+                    ctrl: true,
+                    shift: true,
+                    ..Default::default()
+                },
+                egui::Key::Z,
+            ) {
                 self.redo();
                 return;
             }
-    
-            // Snapshot PRIMA della modifica
+            if i.consume_key(Modifiers::CTRL, Key::Z) {
+                self.undo();
+                return;
+            }
+
             let mut will_modify = false;
-    
+
             if i.key_pressed(Key::Enter)
                 || i.key_pressed(Key::Backspace)
                 || i.key_pressed(Key::Delete)
                 || i.key_pressed(Key::Tab)
+                || i.key_pressed(Key::Space)
             {
                 will_modify = true;
             }
-            for event in &i.events {
-                if matches!(event, egui::Event::Text(_)) {
-                    will_modify = true;
-                }
-            }
-    
+            // for event in &i.events {
+            //     if matches!(event, egui::Event::Text(_)) {
+            //         will_modify = true;
+            //     }
+            // }
+
             if will_modify {
                 self.push_snapshot();
-                // svuota undo quando l'utente modifica manualmente
                 self.undo_snapshot.clear();
             }
-    
+
             // Navigation
             if i.consume_key(Modifiers::CTRL, Key::ArrowRight) {
                 self.buffer.move_ctrl_right();
@@ -209,7 +216,7 @@ impl TypsttyApp {
                     panic!("Error: {e}");
                 }
             }
-    
+
             if !i.modifiers.ctrl {
                 if i.key_pressed(Key::Enter) {
                     self.buffer.newline();
@@ -228,7 +235,7 @@ impl TypsttyApp {
                         modified = true;
                     }
                 }
-    
+
                 for event in &i.events {
                     if let egui::Event::Text(text) = event {
                         for c in text.chars() {
@@ -239,7 +246,7 @@ impl TypsttyApp {
                         }
                     }
                 }
-    
+
                 if i.key_pressed(Key::Tab) {
                     for _ in 0..4 {
                         self.buffer.push_char(' ');
@@ -248,7 +255,7 @@ impl TypsttyApp {
                 }
             }
         });
-    
+
         modified
     }
 
