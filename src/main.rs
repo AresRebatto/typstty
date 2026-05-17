@@ -1,7 +1,8 @@
-mod app;
+mod core;
+pub mod debug_log;//for extern
 mod text_buffer;
 
-use app::TypsttyApp;
+use core::app::TypsttyApp;
 use std::{env, path::PathBuf, process::exit};
 
 fn main() -> eframe::Result<()> {

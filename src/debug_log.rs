@@ -6,7 +6,7 @@ pub fn log(msg: String) {
         .append(true)
         .create(true)
         .open("debug.log")
-        .unwrap();
+        .unwrap();	
 
     writeln!(file, "{msg}").unwrap();
 }

@@ -1,12 +1,13 @@
+use eframe::App;
 use eframe::egui::{self, Color32, FontFamily, FontId, Key, Modifiers, Pos2, Rect, Stroke, Vec2};
 use std::fs::{File, OpenOptions};
 use std::io::Read;
 use std::path::PathBuf;
 use std::process::{Command, exit};
 
+use super::app_snapshot::AppSnapshot;
+use super::highlight_span::*;
 use crate::text_buffer::lines::Lines;
-use typstty::highlight_span::*;
-
 // ─── Palette ────────────────────────────────────────────────────────────────
 
 const BG: Color32 = Color32::from_rgb(30, 30, 46); // base
@@ -15,7 +16,6 @@ const LINE_NUM: Color32 = Color32::from_rgb(88, 91, 112); // overlay0
 const LINE_NUM_ACTIVE: Color32 = Color32::from_rgb(166, 173, 200); // text
 const TEXT_COLOR: Color32 = Color32::from_rgb(205, 214, 244); // text
 const CURSOR_COLOR: Color32 = Color32::from_rgb(137, 180, 250); // blue
-const SELECTION_COLOR: Color32 = Color32::from_rgba_premultiplied(137, 180, 250, 40);
 const CURRENT_LINE_HL: Color32 = Color32::from_rgba_premultiplied(49, 50, 68, 180); // surface0
 
 const FONT_SIZE: f32 = 15.0;
@@ -23,8 +23,8 @@ const GUTTER_WIDTH: f32 = 48.0;
 const LINE_PADDING: f32 = 2.0; // extra vertical padding per line
 const H_PADDING: f32 = 8.0; // left padding after gutter
 
+const MAX_SNAPSHOTS: usize = 20;
 // ─── App ────────────────────────────────────────────────────────────────────
-
 pub struct TypsttyApp {
     buffer: Lines,
     file_path: PathBuf,
@@ -33,8 +33,8 @@ pub struct TypsttyApp {
     blink_acc: f32,
     cursor_visible: bool,
 
-    highlight_cache: Vec<HighlightSpan>,
-    highlight_dirty: bool,
+    snapshot: Vec<AppSnapshot>,
+    undo_snapshot: Vec<AppSnapshot>,
 }
 
 impl TypsttyApp {
@@ -56,11 +56,38 @@ impl TypsttyApp {
             blink_acc: 0.0,
             cursor_visible: true,
 
-            highlight_cache: Vec::new(),
-            highlight_dirty: false,
+            snapshot: Vec::new(),
+            undo_snapshot: Vec::new(),
         }
     }
 
+    fn push_snapshot(&mut self) {
+        if self.snapshot.len() >= MAX_SNAPSHOTS {
+            self.snapshot.remove(0);
+        }
+        self.snapshot.push(AppSnapshot {
+            buffer: self.buffer.clone(),
+        });
+    }
+
+    fn undo(&mut self) {
+        if let Some(snap) = self.snapshot.pop() {
+            self.undo_snapshot.push(AppSnapshot {
+                buffer: self.buffer.clone(),
+            });
+            self.buffer = snap.buffer;
+        }
+    }
+
+    fn redo(&mut self) {
+        if let Some(snap) = self.undo_snapshot.pop() {
+            self.snapshot.push(AppSnapshot {
+                buffer: self.buffer.clone(),
+            });
+            self.buffer = snap.buffer;
+        }
+    }
+    
     // ── Font setup ──────────────────────────────────────────────────────────
 
     fn configure_fonts(ctx: &egui::Context) {
@@ -83,7 +110,7 @@ impl TypsttyApp {
 
     // ── Save and Compile ────────────────────────────────────────────────────────────────
 
-    fn save(&self) {
+    fn save_to_file(&self) {
         let result = OpenOptions::new()
             .write(true)
             .create(true)
@@ -97,7 +124,7 @@ impl TypsttyApp {
     }
 
     fn compile_typst(&self) -> Result<(), Box<dyn std::error::Error>> {
-        self.save();
+        self.save_to_file();
 
         //TODO use typst-pdf
         let status = Command::new("typst")
@@ -120,15 +147,43 @@ impl TypsttyApp {
     /// Returns `true` if the buffer was modified (to reset the cursor blink).
     fn handle_input(&mut self, ctx: &egui::Context) -> bool {
         let mut modified = false;
-
+    
         ctx.input_mut(|i| {
-            // ── Ctrl shortcuts ────────────────────────────────────────────
             if i.consume_key(Modifiers::CTRL, Key::S) {
-                self.save();
+                self.save_to_file();
             }
-            // TODO Ctrl-Z / Ctrl-Shift-Z (undo/redo) could be wired here later.
-
-            // ── Navigation ────────────────────────────────────────────────
+            if i.consume_key(Modifiers::CTRL, Key::Z) {
+                self.undo();
+                return; // non pushare snapshot dopo un undo
+            }
+            if i.consume_key(Modifiers::CTRL | Modifiers::SHIFT, Key::Z) {
+                self.redo();
+                return;
+            }
+    
+            // Snapshot PRIMA della modifica
+            let mut will_modify = false;
+    
+            if i.key_pressed(Key::Enter)
+                || i.key_pressed(Key::Backspace)
+                || i.key_pressed(Key::Delete)
+                || i.key_pressed(Key::Tab)
+            {
+                will_modify = true;
+            }
+            for event in &i.events {
+                if matches!(event, egui::Event::Text(_)) {
+                    will_modify = true;
+                }
+            }
+    
+            if will_modify {
+                self.push_snapshot();
+                // svuota undo quando l'utente modifica manualmente
+                self.undo_snapshot.clear();
+            }
+    
+            // Navigation
             if i.consume_key(Modifiers::CTRL, Key::ArrowRight) {
                 self.buffer.move_ctrl_right();
             } else if i.consume_key(Modifiers::CTRL, Key::ArrowLeft) {
@@ -150,15 +205,11 @@ impl TypsttyApp {
             } else if i.key_pressed(Key::Q) && i.modifiers.ctrl {
                 exit(0);
             } else if i.key_pressed(Key::R) && i.modifiers.ctrl {
-                match self.compile_typst() {
-                    Ok(_) => {}
-                    Err(e) => {
-                        panic!("Error: {e}");
-                    }
+                if let Err(e) = self.compile_typst() {
+                    panic!("Error: {e}");
                 }
             }
-
-            // ── Editing ───────────────────────────────────────────────────
+    
             if !i.modifiers.ctrl {
                 if i.key_pressed(Key::Enter) {
                     self.buffer.newline();
@@ -169,7 +220,6 @@ impl TypsttyApp {
                     modified = true;
                 }
                 if i.key_pressed(Key::Delete) {
-                    // Delete = move right then backspace (delete char under cursor).
                     let old_col = self.buffer.col();
                     let old_row = self.buffer.row();
                     self.buffer.move_right();
@@ -178,18 +228,18 @@ impl TypsttyApp {
                         modified = true;
                     }
                 }
-
-                // ── Printable characters ──────────────────────────────────────
+    
                 for event in &i.events {
                     if let egui::Event::Text(text) = event {
                         for c in text.chars() {
                             self.buffer.push_char(c);
+                            if c == ' ' {
+                                modified = true;
+                            }
                         }
-                        modified = true;
                     }
                 }
-
-                // Tab → insert 4 spaces (common for .typ files)
+    
                 if i.key_pressed(Key::Tab) {
                     for _ in 0..4 {
                         self.buffer.push_char(' ');
@@ -198,7 +248,7 @@ impl TypsttyApp {
                 }
             }
         });
-
+    
         modified
     }
 
