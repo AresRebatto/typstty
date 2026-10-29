@@ -1,13 +1,21 @@
 [package]
-name = "typstty"
+name = "typst-live"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-eframe = { version = "0.27", features = ["default_fonts"] }
-egui   = "0.27"
-typst-syntax = "0.13"
+eframe = "0.37.0"
+rfd = "0.17.2"
+typst = "0.15.1"
+typst-assets = { version = "0.15.1", features = ["fonts"] }
+typst-layout = "0.15.1"
+typst-pdf = "0.15.1"
+typst-render = "0.15.1"
+typst-syntax = "0.15.1"
 
-[profile.release]
-opt-level = 3
-lto = true
+# U3: AltGr (Ctrl+Alt on Windows) must produce text; egui-winit filters it out upstream.
+[patch.crates-io]
+egui-winit = { path = "vendor/egui-winit" }
+
+[profile.dev]
+debug = "line-tables-only"
